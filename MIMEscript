@@ -1,0 +1,80 @@
+import java.net.URL
+import java.net.HttpURLConnection
+import java.io.OutputStreamWriter
+import groovy.json.JsonSlurper
+import com.boomi.execution.ExecutionUtil;
+import java.io.File;
+import okhttp3.MultipartBody;
+import java.net.Proxy;
+import okhttp3.*;
+import java.util.concurrent.TimeUnit;
+
+
+
+logger = ExecutionUtil.getBaseLogger();
+
+logger.info("INSIDE TRANSMIT FILE GROOVY CODE");
+
+String G2DL_INGESTION_WRITE_TIMEOUT=ExecutionUtil.getDynamicProcessProperty("G2DL_INGESTION_WRITE_TIMEOUT");
+String G2DL_INGESTION_CONNECT_TIMEOUT=ExecutionUtil.getDynamicProcessProperty("G2DL_INGESTION_CONNECT_TIMEOUT");
+String G2DL_INGESTION_READ_TIMEOUT=ExecutionUtil.getDynamicProcessProperty("G2DL_INGESTION_READ_TIMEOUT");
+
+logger.info("G2DL_INGESTION_WRITE_TIMEOUT"+G2DL_INGESTION_WRITE_TIMEOUT);
+
+int context_G2DL_INGESTION_WRITE_TIMEOUT = (G2DL_INGESTION_WRITE_TIMEOUT == null || G2DL_INGESTION_WRITE_TIMEOUT == "") ? 100 : G2DL_INGESTION_WRITE_TIMEOUT.toInteger();
+int context_G2DL_INGESTION_CONNECT_TIMEOUT = (G2DL_INGESTION_CONNECT_TIMEOUT == null || G2DL_INGESTION_CONNECT_TIMEOUT == "") ? 100 : G2DL_INGESTION_CONNECT_TIMEOUT.toInteger();
+int context_G2DL_INGESTION_READ_TIMEOUT = (G2DL_INGESTION_READ_TIMEOUT == null || G2DL_INGESTION_READ_TIMEOUT == "") ? 100 : G2DL_INGESTION_READ_TIMEOUT.toInteger();
+
+String IR_TALEND_OUTPUT =ExecutionUtil.getDynamicProcessProperty("IR_TALEND_OUTPUT");
+String CMMS_ID =ExecutionUtil.getDynamicProcessProperty("CMMS_ID");
+String SAP_CLOUD_ENABLED =ExecutionUtil.getDynamicProcessProperty("SAP_CLOUD_ENABLED");
+String MAXIMO_CLOUD_ENABLED =ExecutionUtil.getDynamicProcessProperty("MAXIMO_CLOUD_ENABLED");
+String HTTP =ExecutionUtil.getDynamicProcessProperty("HTTP");
+String APM_API_APP_SERVER =ExecutionUtil.getDynamicProcessProperty("APM_API_APP_SERVER");
+
+String G2DL_INGESTION_URL =ExecutionUtil.getDynamicProcessProperty("G2DL_INGESTION_URL");
+String G2DL_INGESTION_PATH =ExecutionUtil.getDynamicProcessProperty("G2DL_INGESTION_PATH");
+
+//String Mtoken = ExecutionUtil.getDynamicProcessProperty("Mtoken");
+String context_APM_SESSION_ID = ExecutionUtil.getDynamicProcessProperty("Mtoken");
+String JOB_GUID =ExecutionUtil.getDynamicProcessProperty("JOB_GUID");
+
+
+logger.info("............Meridium Token :  "+context_APM_SESSION_ID);
+logger.info("............JOB_GUID  :  "+JOB_GUID);
+
+if ((SAP_CLOUD_ENABLED != null && !SAP_CLOUD_ENABLED.isEmpty() && !SAP_CLOUD_ENABLED.equals("") && SAP_CLOUD_ENABLED.contains("true")) || (MAXIMO_CLOUD_ENABLED != null && !MAXIMO_CLOUD_ENABLED.isEmpty() && !MAXIMO_CLOUD_ENABLED.equals("") && MAXIMO_CLOUD_ENABLED.contains("true"))) 
+{
+
+G2DL_INGESTION_URL=G2DL_INGESTION_URL+G2DL_INGESTION_PATH+JOB_GUID+"/";
+}else{
+G2DL_INGESTION_URL=HTTP+APM_API_APP_SERVER+"/meridium/connect/"+G2DL_INGESTION_PATH+JOB_GUID+"/";
+}
+
+//JOB_GUID="9CFE5191-2A39-4EA3-B280-FDC956BD3609";
+String FILE_TO_UPLOAD=IR_TALEND_OUTPUT + "/G2DL_EAM_INGESTION/" +CMMS_ID+"_"+JOB_GUID+".zip";
+
+String FILE_NAME=CMMS_ID+"_"+JOB_GUID+".zip";
+
+logger.info("............SOURCE FILE NAME  :  "+FILE_NAME);
+
+OkHttpClient client = new OkHttpClient().newBuilder().connectTimeout(context_G2DL_INGESTION_CONNECT_TIMEOUT, TimeUnit.SECONDS).writeTimeout(context_G2DL_INGESTION_WRITE_TIMEOUT, TimeUnit.SECONDS).readTimeout(context_G2DL_INGESTION_READ_TIMEOUT, TimeUnit.SECONDS).build();
+MediaType mediaType = MediaType.parse("application/json");
+
+RequestBody body = new MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("file",FILE_NAME,RequestBody.create(MediaType.parse("application/octet-stream"),new File(FILE_TO_UPLOAD))).build();
+Request request = new Request.Builder().url(G2DL_INGESTION_URL).method("PUT", body).addHeader("Content-Type", "application/json").addHeader("MeridiumToken", context_APM_SESSION_ID).build();
+
+Response response = client.newCall(request).execute(); 
+int responseCode = response.code();
+
+ResponseBody responseBody = response.body();
+
+String responseMessage = responseBody.string();
+
+logger.info("Response Code : "+responseCode);
+logger.info("Response Received :"+responseMessage);
+
+
+responseBody.close();
+
+logger.info("Completed transmission of file"+FILE_TO_UPLOAD);
